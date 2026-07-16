@@ -1,0 +1,17 @@
+{
+  "adapter_type": "http",
+  "adapter_version": "m5-v1",
+  "connection": {
+    "type": "http",
+    "url": "http://127.0.0.1:8000/api/v1/evaluation/target",
+    "method": "POST",
+    "input_field": "input",
+    "response_path": "output",
+    "header_env": {
+      "Authorization": "EVAL_AUTHORIZATION"
+    }
+  },
+  "prompt": null,
+  "model": "deterministic-business-workflow-agent",
+  "generation": {}
+}

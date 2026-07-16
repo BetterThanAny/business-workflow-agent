@@ -1,0 +1,74 @@
+from enum import StrEnum
+
+
+class TicketStatus(StrEnum):
+    OPEN = "OPEN"
+    PENDING = "PENDING"
+    RESOLVED = "RESOLVED"
+    CLOSED = "CLOSED"
+
+
+class TicketPriority(StrEnum):
+    LOW = "LOW"
+    NORMAL = "NORMAL"
+    HIGH = "HIGH"
+    URGENT = "URGENT"
+
+
+class ApprovalStatus(StrEnum):
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    EXPIRED = "EXPIRED"
+    USED = "USED"
+
+
+class ApprovalDecision(StrEnum):
+    APPROVE = "APPROVE"
+    REJECT = "REJECT"
+
+
+class WorkflowState(StrEnum):
+    RECEIVED = "RECEIVED"
+    CLASSIFY = "CLASSIFY"
+    CLARIFY = "CLARIFY"
+    RETRIEVE = "RETRIEVE"
+    PLAN_ACTION = "PLAN_ACTION"
+    VALIDATE_POLICY = "VALIDATE_POLICY"
+    REPAIR_SCHEMA = "REPAIR_SCHEMA"
+    EXECUTE = "EXECUTE"
+    AWAIT_APPROVAL = "AWAIT_APPROVAL"
+    VERIFY_RESULT = "VERIFY_RESULT"
+    COMPLETE = "COMPLETE"
+    RETRYABLE_FAILURE = "RETRYABLE_FAILURE"
+    RETRY = "RETRY"
+    NON_RETRYABLE_FAILURE = "NON_RETRYABLE_FAILURE"
+    MANUAL_REVIEW = "MANUAL_REVIEW"
+    CANCELLED = "CANCELLED"
+
+
+class ToolCallStatus(StrEnum):
+    IN_PROGRESS = "IN_PROGRESS"
+    SUCCEEDED = "SUCCEEDED"
+    DENIED = "DENIED"
+    AWAITING_APPROVAL = "AWAITING_APPROVAL"
+    FAILED = "FAILED"
+
+
+class ToolExecutionStatus(StrEnum):
+    SUCCEEDED = "SUCCEEDED"
+    DENIED = "DENIED"
+    APPROVAL_REQUIRED = "APPROVAL_REQUIRED"
+    FAILED = "FAILED"
+
+
+class OutboxStatus(StrEnum):
+    PENDING = "PENDING"
+    IN_PROGRESS = "IN_PROGRESS"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+
+class RefundStatus(StrEnum):
+    ISSUED = "ISSUED"
