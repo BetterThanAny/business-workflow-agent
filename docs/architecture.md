@@ -2,70 +2,96 @@
 
 ## Trust boundary
 
-The model-facing provider can only return a structured proposal. `AgentRunner`
-persists explicit transitions and sends a registered proposal to `ToolExecutor`.
-The executor re-validates the fixed Pydantic schema and authorizes the authenticated
-server-side `Principal`; model text, context, retrieved text, and proposed arguments
-never become authority.
+The provider can only return a structured proposal. `AgentRunner` persists explicit transitions and
+sends registered proposals to `ToolExecutor`. The executor re-validates the fixed Pydantic schema and
+authorizes the authenticated server-side `Principal`; model text, context, retrieved text and proposed
+arguments never become authority.
 
-```text
-client/JWT -> FastAPI -> AgentRunner -> StructuredProvider (untrusted proposal)
-                         |       |
-                         |       +-> redacted workflow/LLM spans and metrics
-                         v
-                    ToolExecutor -> Policy/RBAC -> outbox -> fixed handler
-                         |                          |
-                         +-> approval pause         +-> idempotent side effect
-                         |
-                         +-> append-only audit, checkpoint, event, side-effect event
+```mermaid
+flowchart LR
+    C["Client / JWT"] --> API["FastAPI"]
+    API --> R["AgentRunner"]
+    L["StructuredProvider\nuntrusted"] --> R
+    R --> CP[("checkpoints + events")]
+    R --> X["ToolExecutor"]
+    X --> P{"schema + policy\nrole / scope / tenant"}
+    P -->|READ_ONLY| H["fixed handler"]
+    P -->|WRITE_LOW_RISK| O["outbox + idempotency"]
+    P -->|WRITE_HIGH_RISK| A["persisted approval"]
+    A -->|independent approver| O
+    O --> H
+    H --> DB[("business state")]
+    X --> AU[("append-only audit")]
 ```
 
-Core domain, policy, tool schemas, and execution are framework-independent. The
-OpenTelemetry and Prometheus integration is injected through `WorkflowTelemetry`, so
-exporters can change without changing authorization or state semantics.
+Core domain, policy, schemas and execution are framework-independent. OpenTelemetry and Prometheus
+are injected through `WorkflowTelemetry`, so exporters can change without altering authorization or
+state semantics.
+
+## State and recovery
+
+```mermaid
+stateDiagram-v2
+    [*] --> RECEIVED
+    RECEIVED --> CLASSIFY
+    CLASSIFY --> CLARIFY: missing or ambiguous
+    CLASSIFY --> PLAN_ACTION: actionable
+    CLARIFY --> PLAN_ACTION: resume with fields
+    PLAN_ACTION --> VALIDATE_POLICY
+    VALIDATE_POLICY --> EXECUTE: allowed low risk
+    VALIDATE_POLICY --> AWAIT_APPROVAL: high risk
+    AWAIT_APPROVAL --> EXECUTE: valid independent approval
+    EXECUTE --> VERIFY_RESULT
+    VERIFY_RESULT --> COMPLETE
+    CLASSIFY --> RETRYABLE_FAILURE: timeout / 429 / 5xx
+    RETRYABLE_FAILURE --> CLASSIFY: due retry
+    RETRYABLE_FAILURE --> MANUAL_REVIEW: exhausted
+    state terminal <<choice>>
+    COMPLETE --> terminal
+    CANCELLED --> terminal
+    NON_RETRYABLE_FAILURE --> terminal
+```
+
+Every transition increments a stable run version and persists a checkpoint in the same transaction.
+Retries persist their due time rather than sleeping in a request. Write calls are uniquely recorded;
+outbox leases can be reclaimed after process death, while completed calls cannot execute twice.
 
 ## MCP and knowledge boundary
 
-The MCP Python SDK adapter exports the same fixed Pydantic input schemas as the REST
-API. A server process is bound to a trusted Principal and run ID before any tool call;
-MCP arguments contain business inputs only. The adapter derives idempotency keys and
-invokes `ToolExecutor`, so MCP cannot bypass schema, role/scope, approval, audit, or
-outbox controls.
-
-```text
-MCP Client -> SDK Server (trusted Principal + run ID) -> ToolExecutor
-                                                     -> enterprise-rag HTTP
-                                                        |       |
-                                                        |       +-> tenant ACL
-                                                        +-> Redis cache/lease
+```mermaid
+flowchart LR
+    MC["MCP client"] --> MS["SDK server\ntrusted Principal + run ID"]
+    MS --> X["ToolExecutor"]
+    X --> K["KnowledgeService"]
+    K --> R[("Redis\nhashed cache + lease")]
+    K --> ER["enterprise-rag HTTP"]
+    T["server-side tenant mapping"] --> K
+    S["service credential"] --> ER
 ```
 
-`search_knowledge_base` resolves an `enterprise-rag` knowledge-base ID from a
-server-side tenant mapping. Redis keys contain only a namespace and SHA-256 digest;
-raw query text and bearer tokens are never persisted. Redis is advisory for reads,
-while the downstream API remains the evidence and authorization source.
+MCP exports the same fixed schemas as REST. Business arguments cannot inject a principal, tenant,
+run ID or idempotency key. `search_knowledge_base` resolves the downstream knowledge-base ID from a
+server-side tenant map. Redis keys contain a namespace and SHA-256 digest, never raw query text or
+bearer tokens; Redis is advisory and cannot grant access.
 
 ## Evaluation boundary
 
-`data/eval/agent_cases.jsonl` is a versioned 160-case snapshot. The local evaluator
-uses the real state machine, policy, registry, outbox, and persistence code with the
-deterministic provider and a fresh in-memory database per case. Timeout cases inject
-a typed provider timeout, advance the deterministic clock, and resume from the
-persisted retry checkpoint. Replay cases call the terminal workflow ten times and
+The versioned 160-case dataset runs the real state machine, policy, registry, outbox and persistence
+with a deterministic provider and an isolated database per case. Timeout cases inject typed failures
+and resume from persisted retry checkpoints. Replay cases call a terminal workflow ten times and
 assert one business side effect.
 
-`POST /api/v1/evaluation/target` is the `llm-eval-platform` HTTP target. It requires
-an Admin JWT, accepts the platform's `input` envelope, and evaluates only inside an
-isolated in-memory database. It returns the platform agent-evaluator fields and a
-redacted full trajectory. It does not access the application's production database.
+This proves deterministic workflow and safety behavior, not real-model quality. Likewise, the RAG
+test double proves the HTTP adapter contract and failure handling, not retrieval relevance. See
+[verification evidence and limits](verification.md).
 
 ## Evidence surfaces
 
-- `GET /api/v1/agent-runs/{run_id}/trajectory` merges checkpoints, workflow events,
-  approvals, tool calls, side-effect events, audit events, and error codes. Only
-  redacted fields are returned; cross-tenant access returns 404.
-- `GET /metrics` exports bounded-label workflow, provider, tool, and orchestration
-  Prometheus series. No message, argument, user, tenant, or run ID is a metric label.
-- OpenTelemetry spans are named `workflow.run`, `workflow.step`, `llm.classify`,
-  `llm.repair`, `llm.summarize`, and `tool.execute`. Attributes contain stable IDs,
-  states, operation names, and tool names, but no model text or tool arguments.
+- `GET /api/v1/agent-runs/{run_id}/trajectory` merges checkpoints, events, approvals, tool calls,
+  side effects, audit records and error codes; cross-tenant access returns 404.
+- `GET /metrics` exports bounded-label Prometheus series with no message, argument, user, tenant or
+  run ID label.
+- OpenTelemetry spans cover `workflow.run`, `workflow.step`, `llm.*` and `tool.execute` with stable
+  IDs and operation names, but no model text or tool arguments.
+- The [two-minute public walkthrough](https://betterthanany.github.io/business-workflow-agent/) is a
+  static, explicitly labelled visualization of recorded deterministic scenarios, not a live backend.
