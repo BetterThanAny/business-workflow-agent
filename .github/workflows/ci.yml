@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: workflow
+          POSTGRES_USER: workflow
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 54329:5432
+        options: >-
+          --health-cmd "pg_isready -U workflow -d workflow"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 56379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql+psycopg://workflow@127.0.0.1:54329/workflow
+      TEST_DATABASE_URL: postgresql+psycopg://workflow@127.0.0.1:54329/workflow
+      REDIS_URL: redis://127.0.0.1:56379/0
+      TEST_REDIS_URL: redis://127.0.0.1:56379/0
+      JWT_SECRET: ci-only-randomized-test-secret-not-for-production
+      KNOWLEDGE_BACKEND: deterministic_stub
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v3
+        with:
+          install: true
+          cache: true
+      - name: Sync locked dependencies
+        run: mise exec -- uv sync --frozen
+      - name: Lint
+        run: mise exec -- uv run ruff check .
+      - name: Type check
+        run: mise exec -- uv run pyright
+      - name: Verify test inventory
+        run: mise exec -- uv run pytest --collect-only -q -ra
+      - name: Run full test suite with integration gates enabled
+        run: mise exec -- uv run pytest -q -ra
+      - name: Verify migrations
+        run: |
+          mise exec -- uv run alembic upgrade head
+          mise exec -- uv run alembic current
+          mise exec -- uv run alembic check
+      - name: Run workflow smoke
+        run: mise exec -- uv run python scripts/smoke_workflow.py
+      - name: Run MCP smoke
+        run: mise exec -- uv run python scripts/smoke_mcp.py
+      - name: Run deterministic release gate
+        run: >-
+          mise exec -- uv run python scripts/evaluate_agent.py
+          --dataset data/eval/agent_cases.jsonl
