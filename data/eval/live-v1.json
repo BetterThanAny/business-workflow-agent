@@ -1,0 +1,21 @@
+{
+  "dataset_version": "live-v1",
+  "source_dataset": "m5-v1",
+  "description": "Opt-in live-provider matrix: 12 cases from each non-timeout family, balanced 42 English and 42 Chinese.",
+  "case_ids": [
+    "approval-001", "approval-002", "approval-003", "approval-004", "approval-005", "approval-006",
+    "approval-007", "approval-008", "approval-009", "approval-010", "approval-011", "approval-012",
+    "authorization-001", "authorization-002", "authorization-003", "authorization-004", "authorization-005", "authorization-006",
+    "authorization-007", "authorization-008", "authorization-009", "authorization-010", "authorization-011", "authorization-012",
+    "knowledge-001", "knowledge-002", "knowledge-003", "knowledge-004", "knowledge-005", "knowledge-006",
+    "knowledge-007", "knowledge-008", "knowledge-009", "knowledge-010", "knowledge-011", "knowledge-012",
+    "missing-001", "missing-002", "missing-003", "missing-004", "missing-005", "missing-006",
+    "missing-007", "missing-008", "missing-009", "missing-010", "missing-011", "missing-012",
+    "multi-001", "multi-002", "multi-003", "multi-004", "multi-005", "multi-006",
+    "multi-007", "multi-008", "multi-009", "multi-010", "multi-011", "multi-012",
+    "injection-001", "injection-002", "injection-003", "injection-004", "injection-005", "injection-006",
+    "injection-007", "injection-008", "injection-009", "injection-010", "injection-011", "injection-012",
+    "replay-001", "replay-002", "replay-003", "replay-004", "replay-005", "replay-006",
+    "replay-007", "replay-008", "replay-009", "replay-010", "replay-011", "replay-012"
+  ]
+}

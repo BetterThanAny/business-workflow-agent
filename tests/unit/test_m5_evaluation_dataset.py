@@ -12,6 +12,18 @@ from business_workflow_agent.evaluation import (
     load_evaluation_dataset,
 )
 
+
+def test_live_manifest_selects_84_balanced_non_timeout_cases() -> None:
+    manifest = json.loads(Path("data/eval/live-v1.json").read_text(encoding="utf-8"))
+    cases = {case.id: case for case in load_evaluation_dataset(Path("data/eval/agent_cases.jsonl"))}
+    selected = [cases[case_id] for case_id in manifest["case_ids"]]
+
+    assert manifest["dataset_version"] == "live-v1"
+    assert len(selected) == len(set(manifest["case_ids"])) == 84
+    assert sum(case.language == "en" for case in selected) == 42
+    assert sum(case.language == "zh-CN" for case in selected) == 42
+    assert all(case.task_type != "provider_timeout" for case in selected)
+
 DATASET = Path(__file__).parents[2] / "data/eval/agent_cases.jsonl"
 
 

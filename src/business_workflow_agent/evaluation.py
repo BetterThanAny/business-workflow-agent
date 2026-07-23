@@ -256,6 +256,13 @@ def load_evaluation_dataset(path: Path) -> list[EvaluationCase]:
 
 def evaluate_case(case: EvaluationCase) -> EvaluationResult:
     evidence = _execute_input(case.input)
+    return _result_from_evidence(case, evidence)
+
+
+def _result_from_evidence(
+    case: EvaluationCase,
+    evidence: _ExecutionEvidence,
+) -> EvaluationResult:
     expected_calls = [call.model_dump(mode="json") for call in case.expected_output.tool_calls]
     actual_calls = evidence.output["tool_calls"]
     denominator = max(len(expected_calls), len(actual_calls))
@@ -316,6 +323,29 @@ def evaluate_dataset(cases: list[EvaluationCase]) -> EvaluationReport:
     return EvaluationReport(metrics=EvaluationMetrics.from_results(results), results=results)
 
 
+def evaluate_live_dataset(
+    cases: list[EvaluationCase],
+    *,
+    provider: StructuredProvider,
+    database_url: str,
+) -> EvaluationReport:
+    results = [
+        _evaluate_case_with_runtime(case, provider=provider, database_url=database_url)
+        for case in cases
+    ]
+    return EvaluationReport(metrics=EvaluationMetrics.from_results(results), results=results)
+
+
+def _evaluate_case_with_runtime(
+    case: EvaluationCase,
+    *,
+    provider: StructuredProvider,
+    database_url: str,
+) -> EvaluationResult:
+    evidence = _execute_input(case.input, provider=provider, database_url=database_url)
+    return _result_from_evidence(case, evidence)
+
+
 def llm_eval_target(request: LLMEvalTargetRequest) -> LLMEvalTargetResponse:
     evidence = _execute_input(request.input)
     return LLMEvalTargetResponse(
@@ -328,17 +358,22 @@ def llm_eval_target(request: LLMEvalTargetRequest) -> LLMEvalTargetResponse:
     )
 
 
-def _execute_input(data: EvaluationInput) -> _ExecutionEvidence:
-    engine = create_database_engine("sqlite+pysqlite:///:memory:")
+def _execute_input(
+    data: EvaluationInput,
+    *,
+    provider: StructuredProvider | None = None,
+    database_url: str = "sqlite+pysqlite:///:memory:",
+) -> _ExecutionEvidence:
+    engine = create_database_engine(database_url)
     Base.metadata.create_all(engine)
     sessions = create_session_factory(engine)
     registry = build_tool_registry()
     clock = _MutableClock()
-    provider: StructuredProvider = DeterministicProvider()
-    if data.task_type == "provider_timeout":
-        provider = _TimeoutOnceProvider(provider)
+    resolved_provider: StructuredProvider = provider or DeterministicProvider()
+    if data.task_type == "provider_timeout" and provider is None:
+        resolved_provider = _TimeoutOnceProvider(resolved_provider)
     telemetry = WorkflowTelemetry()
-    runner = AgentRunner(sessions, registry, provider, clock=clock, telemetry=telemetry)
+    runner = AgentRunner(sessions, registry, resolved_provider, clock=clock, telemetry=telemetry)
     tenant_id = uuid5(NAMESPACE_URL, f"eval-tenant:{data.case_id}")
     user_id = uuid5(NAMESPACE_URL, f"eval-user:{data.case_id}:{data.role.value}")
     principal = Principal(
@@ -366,6 +401,7 @@ def _execute_input(data: EvaluationInput) -> _ExecutionEvidence:
     recovered = False
     total_steps = 0
     total_tokens = 0
+    total_schema_repairs = 0
     started = perf_counter()
     try:
         for step in data.steps:
@@ -396,13 +432,18 @@ def _execute_input(data: EvaluationInput) -> _ExecutionEvidence:
                         arguments if isinstance(arguments, dict) else {}, symbols
                     )
                     if completed.state is not WorkflowState.CLARIFY:
-                        definition = registry.get(tool_name)
-                        definition.input_model.model_validate(arguments)
+                        try:
+                            definition = registry.get(tool_name)
+                        except KeyError:
+                            definition = None
+                        if definition is not None:
+                            definition.input_model.model_validate(arguments)
                     actual_calls.append({"name": tool_name, "arguments": normalized})
             final_state = completed.state.value
             final_error = completed.error_code
             total_steps += completed.step_count
             total_tokens += completed.tokens_used
+            total_schema_repairs += persisted.schema_repair_attempts
         duration_ms = (perf_counter() - started) * 1000
 
         trajectories: list[dict[str, Any]] = []
@@ -432,8 +473,22 @@ def _execute_input(data: EvaluationInput) -> _ExecutionEvidence:
                 }
                 for outbox in outboxes
             ]
-            ticket_count = session.scalar(select(func.count()).select_from(Ticket)) or 0
-            refund_count = session.scalar(select(func.count()).select_from(Refund)) or 0
+            ticket_count = (
+                session.scalar(
+                    select(func.count())
+                    .select_from(Ticket)
+                    .where(Ticket.tenant_id == tenant_id)
+                )
+                or 0
+            )
+            refund_count = (
+                session.scalar(
+                    select(func.count())
+                    .select_from(Refund)
+                    .where(Refund.tenant_id == tenant_id)
+                )
+                or 0
+            )
             side_effect_count = int(ticket_count + refund_count)
         return _ExecutionEvidence(
             output={
@@ -441,6 +496,7 @@ def _execute_input(data: EvaluationInput) -> _ExecutionEvidence:
                 "tool_calls": actual_calls,
                 "token_count": total_tokens,
                 "step_count": total_steps,
+                "schema_repair_attempts": total_schema_repairs,
                 "side_effects": side_effects,
                 "approval_ids": [str(approval.id) for approval in approvals],
                 "recovered": recovered,

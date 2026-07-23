@@ -1,5 +1,6 @@
 .DS_Store
 .env
+artifacts/live-evidence/*.json
 .mise.local.toml
 .pytest_cache/
 .ruff_cache/
@@ -12,4 +13,3 @@ __pycache__/
 build/
 dist/
 business_workflow_agent.db
-
