@@ -73,7 +73,12 @@ from business_workflow_agent.schemas import (
 from business_workflow_agent.services import BusinessService, ResourceNotFound
 from business_workflow_agent.tools.registry import ToolRegistry, build_tool_registry
 from business_workflow_agent.trajectory import RunTrajectoryService
-from business_workflow_agent.workflow.provider import DeterministicProvider, StructuredProvider
+from business_workflow_agent.workflow.provider import (
+    DeterministicProvider,
+    OpenAICompatibleHttpTransport,
+    OpenAICompatibleProvider,
+    StructuredProvider,
+)
 from business_workflow_agent.workflow.runner import AgentRunner, WorkflowResumeError
 
 
@@ -94,7 +99,26 @@ def create_app(
         tool_registry = build_tool_registry(knowledge_backend=owned_knowledge_backend)
     else:
         tool_registry = registry
-    structured_provider = provider or DeterministicProvider()
+    owned_provider = provider is None
+    if provider is not None:
+        structured_provider = provider
+    elif resolved_settings.provider_backend == "openai_compatible":
+        structured_provider = OpenAICompatibleProvider(
+            OpenAICompatibleHttpTransport(
+                base_url=resolved_settings.provider_base_url,
+                api_key=(
+                    resolved_settings.provider_api_key.get_secret_value()
+                    if resolved_settings.provider_api_key is not None
+                    else None
+                ),
+                timeout_seconds=resolved_settings.provider_timeout_seconds,
+                max_attempts=resolved_settings.provider_max_attempts,
+            ),
+            model=resolved_settings.provider_model,
+            tool_catalog=tool_registry.export_all_schemas(),
+        )
+    else:
+        structured_provider = DeterministicProvider()
     workflow_telemetry = telemetry or WorkflowTelemetry()
     agent_runner = AgentRunner(
         session_factory,
@@ -109,6 +133,10 @@ def create_app(
             yield
         finally:
             workflow_telemetry.shutdown()
+            if owned_provider:
+                close_provider = getattr(structured_provider, "close", None)
+                if callable(close_provider):
+                    close_provider()
             if owned_knowledge_backend is not None:
                 owned_knowledge_backend.close()
 

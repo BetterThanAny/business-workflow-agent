@@ -34,3 +34,11 @@ class Settings(BaseSettings):
     redis_url: str = "redis://127.0.0.1:56379/0"
     knowledge_cache_ttl_seconds: int = Field(default=60, ge=1, le=3600)
     knowledge_lock_ttl_seconds: int = Field(default=5, ge=1, le=60)
+    provider_backend: Literal["deterministic_stub", "openai_compatible"] = (
+        "deterministic_stub"
+    )
+    provider_base_url: str = "http://127.0.0.1:11434/v1"
+    provider_model: str = "qwen2.5:0.5b"
+    provider_api_key: SecretStr | None = None
+    provider_timeout_seconds: float = Field(default=30, gt=0, le=300)
+    provider_max_attempts: int = Field(default=2, ge=1, le=5)

@@ -32,6 +32,7 @@ addopts = "--strict-config --strict-markers"
 testpaths = ["tests"]
 markers = [
   "postgres: requires the local PostgreSQL integration service",
+  "live: requires explicitly configured local or remote live services",
 ]
 
 [tool.ruff]
