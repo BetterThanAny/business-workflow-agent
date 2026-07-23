@@ -84,6 +84,7 @@ def test_independent_approver_uses_one_time_token_and_resumes_workflow(
         headers=auth_headers(approver),
     )
     assert details.status_code == 200
+    assert details.json()["origin"] == "AGENT_TOOL"
     assert details.json()["tool_arguments_redacted"]["reason"] == "[REDACTED]"
     assert str(arguments["reason"]) not in details.text
     session.expire_all()

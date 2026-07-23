@@ -18,6 +18,7 @@ def test_ticket_update_and_refund_apis_commit_complete_transactions(
     create_customer: Callable[[Principal, str], dict[str, object]],
 ) -> None:
     admin = principal_factory(Role.ADMIN)
+    approver = principal_factory(Role.REFUND_MANAGER)
     support = principal_factory(Role.SUPPORT_AGENT)
     customer = create_customer(admin, "happy")
     support_run = create_run(support)
@@ -94,8 +95,46 @@ def test_ticket_update_and_refund_apis_commit_complete_transactions(
             "Idempotency-Key": "refund-issue-happy",
         },
     )
-    assert refund_response.status_code == 201, refund_response.text
-    assert refund_response.json()["status"] == "ISSUED"
+    assert refund_response.status_code == 202, refund_response.text
+    pending_refund = refund_response.json()
+    assert pending_refund["status"] == "APPROVAL_REQUIRED"
+    approval_id = pending_refund["approval_id"]
+
+    for _ in range(9):
+        replay = client.post(
+            "/api/v1/refunds",
+            json={
+                "quote_id": quote["quote_id"],
+                "order_id": quote_request["order_id"],
+                "purchase_amount_cents": quote_request["purchase_amount_cents"],
+                "amount_cents": quote_request["requested_amount_cents"],
+                "currency": quote_request["currency"],
+                "reason": quote_request["reason"],
+            },
+            headers={
+                **auth_headers(admin),
+                "X-Workflow-Run-ID": str(admin_run),
+                "Idempotency-Key": "refund-issue-happy",
+            },
+        )
+        assert replay.status_code == 202
+        assert replay.json()["approval_id"] == approval_id
+        assert replay.json()["replayed"] is True
+
+    token = client.post(
+        f"/api/v1/approvals/{approval_id}/decision-token",
+        headers=auth_headers(approver),
+    )
+    assert token.status_code == 201, token.text
+    decision = client.post(
+        f"/api/v1/approvals/{approval_id}/decision",
+        json={"decision": "APPROVE", "decision_token": token.json()["decision_token"]},
+        headers=auth_headers(approver),
+    )
+    assert decision.status_code == 200, decision.text
+    assert decision.json()["origin"] == "DIRECT_API"
+    assert decision.json()["result"]["status"] == "ISSUED"
+    assert decision.json()["run_state"] == "RECEIVED"
 
     session.expire_all()
     assert session.scalar(select(func.count()).select_from(Ticket)) == 1
@@ -159,8 +198,8 @@ def test_stale_ticket_update_and_invalid_refund_have_no_business_side_effect(
             "Idempotency-Key": "refund-invalid-quote",
         },
     )
-    assert invalid_refund.status_code == 409
-    assert invalid_refund.json()["detail"] == "INVALID_REFUND"
+    assert invalid_refund.status_code == 202
+    assert invalid_refund.json()["status"] == "APPROVAL_REQUIRED"
 
     session.expire_all()
     ticket = session.get(Ticket, UUID(created["id"]))
@@ -169,4 +208,3 @@ def test_stale_ticket_update_and_invalid_refund_have_no_business_side_effect(
     assert ticket.version == 1
     assert session.scalar(select(func.count()).select_from(TicketEvent)) == 1
     assert session.scalar(select(func.count()).select_from(Refund)) == 0
-

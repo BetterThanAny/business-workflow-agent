@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from business_workflow_agent.auth import Principal, Role, granted_scopes
 from business_workflow_agent.domain import (
     ApprovalDecision,
+    ApprovalOrigin,
     ApprovalStatus,
     OutboxStatus,
     ToolCallStatus,
@@ -80,6 +81,7 @@ class ApprovalService:
             run_id=approval.run_id,
             tool_name=approval.tool_name,
             status=ApprovalStatus(approval.status),
+            origin=ApprovalOrigin(approval.origin),
             requested_by_user_id=approval.requested_by_user_id,
             tool_arguments_redacted=approval.tool_arguments_redacted,
             expires_at=approval.expires_at,
@@ -492,6 +494,7 @@ class ApprovalService:
             approval_id=approval.id,
             run_id=run.id,
             approval_status=ApprovalStatus(approval.status),
+            origin=ApprovalOrigin(approval.origin),
             tool_call_status=ToolCallStatus(call.status),
             run_state=WorkflowState(run.state),
             result=result,

@@ -291,7 +291,25 @@ def main() -> None:
                 "Idempotency-Key": f"smoke-refund-direct-{suffix}",
             },
         )
-        _expect(direct_refund_response, 201)
+        _expect(direct_refund_response, 202)
+        assert direct_refund_response.json()["status"] == "APPROVAL_REQUIRED"
+        direct_approval_id = direct_refund_response.json()["approval_id"]
+        direct_token_response = client.post(
+            f"/api/v1/approvals/{direct_approval_id}/decision-token",
+            headers=approver_headers,
+        )
+        _expect(direct_token_response, 201)
+        direct_decision_response = client.post(
+            f"/api/v1/approvals/{direct_approval_id}/decision",
+            json={
+                "decision": "APPROVE",
+                "decision_token": direct_token_response.json()["decision_token"],
+            },
+            headers=approver_headers,
+        )
+        _expect(direct_decision_response, 200)
+        assert direct_decision_response.json()["origin"] == "DIRECT_API"
+        assert direct_decision_response.json()["run_state"] == "RECEIVED"
 
         schemas_response = client.get("/api/v1/tools/schemas", headers=admin_headers)
         _expect(schemas_response, 200)
@@ -316,7 +334,7 @@ def main() -> None:
         approval_count = session.scalar(
             select(func.count()).select_from(Approval).where(Approval.id == approval_id)
         )
-        refund_id = UUID(direct_refund_response.json()["id"])
+        refund_id = UUID(direct_decision_response.json()["result"]["id"])
         refund_count = session.scalar(
             select(func.count()).select_from(Refund).where(Refund.id == refund_id)
         )
@@ -412,7 +430,7 @@ def main() -> None:
                 "ticket_replays": 10,
                 "ticket_side_effects": 1,
                 "high_risk_tool": "APPROVAL_REQUIRED",
-                "direct_refund_api": "ISSUED",
+                "direct_refund_api": "APPROVED_THEN_ISSUED",
                 "knowledge_agent": "COMPLETE",
                 "knowledge_agent_events": 3,
                 "approval_approved_agent": "COMPLETE",

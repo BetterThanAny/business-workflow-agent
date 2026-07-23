@@ -26,11 +26,8 @@ from business_workflow_agent.auth import (
 )
 from business_workflow_agent.config import Settings
 from business_workflow_agent.db import create_database_engine, create_session_factory
-from business_workflow_agent.direct_operations import (
-    CREATE_CUSTOMER_OPERATION,
-    ISSUE_REFUND_OPERATION,
-)
-from business_workflow_agent.domain import ToolExecutionStatus
+from business_workflow_agent.direct_operations import CREATE_CUSTOMER_OPERATION
+from business_workflow_agent.domain import ApprovalOrigin, ToolExecutionStatus
 from business_workflow_agent.evaluation import (
     LLMEvalTargetRequest,
     LLMEvalTargetResponse,
@@ -62,7 +59,6 @@ from business_workflow_agent.schemas import (
     CustomerCreateInput,
     CustomerOutput,
     IssueRefundInput,
-    RefundOutput,
     RefundQuoteOutput,
     RunTrajectoryOutput,
     TicketListOutput,
@@ -503,7 +499,7 @@ def create_app(
         )
         return _extract_result(result, RefundQuoteOutput)
 
-    @app.post("/api/v1/refunds", response_model=RefundOutput, status_code=201)
+    @app.post("/api/v1/refunds", response_model=ToolExecutionResponse, status_code=202)
     def issue_refund_direct(
         data: IssueRefundInput,
         principal: Annotated[
@@ -513,15 +509,15 @@ def create_app(
         session: Annotated[Session, Depends(get_session)],
         run_id: Annotated[UUID, Header(alias="X-Workflow-Run-ID")],
         idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=8)],
-    ) -> RefundOutput:
-        result = DirectOperationExecutor(session, tool_registry).execute_direct(
-            definition=ISSUE_REFUND_OPERATION,
+    ) -> ToolExecutionResponse:
+        return ToolExecutor(session, tool_registry).execute(
+            tool_name="issue_refund",
             arguments=data.model_dump(mode="json"),
             principal=principal,
             run_id=run_id,
             idempotency_key=idempotency_key,
+            approval_origin=ApprovalOrigin.DIRECT_API,
         )
-        return _extract_result(result, RefundOutput)
 
     @app.get("/api/v1/tools/schemas", response_model=ToolSchemaListOutput)
     def export_tool_schemas(

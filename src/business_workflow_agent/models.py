@@ -19,6 +19,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from business_workflow_agent.db import Base
 from business_workflow_agent.domain import (
+    ApprovalOrigin,
     ApprovalStatus,
     OutboxStatus,
     RefundStatus,
@@ -189,6 +190,9 @@ class Approval(TimestampMixin, Base):
         ForeignKey("workflow_run.id", ondelete="RESTRICT"), nullable=False
     )
     requested_by_user_id: Mapped[UUID] = mapped_column(nullable=False)
+    origin: Mapped[str] = mapped_column(
+        String(20), default=ApprovalOrigin.AGENT_TOOL.value, nullable=False
+    )
     tool_name: Mapped[str] = mapped_column(String(100), nullable=False)
     tool_arguments: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     tool_arguments_available: Mapped[bool] = mapped_column(

@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from business_workflow_agent.auth import Principal, Role, granted_scopes
 from business_workflow_agent.domain import (
+    ApprovalOrigin,
     ApprovalStatus,
     OutboxStatus,
     ToolCallStatus,
@@ -106,6 +107,7 @@ class ToolExecutor:
         principal: Principal,
         run_id: UUID,
         idempotency_key: str | None,
+        approval_origin: ApprovalOrigin = ApprovalOrigin.AGENT_TOOL,
     ) -> ToolExecutionResponse:
         definition = self.registry.get(tool_name)
         if definition.risk is RiskClass.WRITE_LOW_RISK:
@@ -123,6 +125,7 @@ class ToolExecutor:
                 principal=principal,
                 run_id=run_id,
                 idempotency_key=idempotency_key,
+                approval_origin=approval_origin,
             )
         except IdempotencyConflict:
             raise
@@ -497,6 +500,7 @@ class ToolExecutor:
         principal: Principal,
         run_id: UUID,
         idempotency_key: str | None,
+        approval_origin: ApprovalOrigin,
     ) -> ToolExecutionResponse:
         definition = self.registry.get(tool_name)
         service = BusinessService(self.session)
@@ -555,6 +559,7 @@ class ToolExecutor:
                     principal,
                     run_id,
                     payload,
+                    origin=approval_origin,
                 )
 
             raw_output = definition.handler(service, validated_input, principal, run_id)
@@ -697,11 +702,14 @@ class ToolExecutor:
         principal: Principal,
         run_id: UUID,
         payload: dict[str, Any],
+        *,
+        origin: ApprovalOrigin,
     ) -> ToolExecutionResponse:
         approval = Approval(
             tenant_id=principal.tenant_id,
             run_id=run_id,
             requested_by_user_id=principal.user_id,
+            origin=origin.value,
             tool_name=definition.name,
             tool_arguments=payload,
             tool_arguments_available=True,

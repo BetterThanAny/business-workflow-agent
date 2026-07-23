@@ -28,6 +28,11 @@ class ApprovalDecision(StrEnum):
     REJECT = "REJECT"
 
 
+class ApprovalOrigin(StrEnum):
+    AGENT_TOOL = "AGENT_TOOL"
+    DIRECT_API = "DIRECT_API"
+
+
 class WorkflowState(StrEnum):
     RECEIVED = "RECEIVED"
     CLASSIFY = "CLASSIFY"

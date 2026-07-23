@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt, StringConstraints,
 
 from business_workflow_agent.domain import (
     ApprovalDecision,
+    ApprovalOrigin,
     ApprovalStatus,
     RefundStatus,
     TicketPriority,
@@ -162,6 +163,7 @@ class ApprovalOutput(StrictModel):
     run_id: UUID
     tool_name: str
     status: ApprovalStatus
+    origin: ApprovalOrigin
 
 
 class ApprovalDetailOutput(ApprovalOutput):
@@ -186,6 +188,7 @@ class ApprovalDecisionOutput(StrictModel):
     approval_id: UUID
     run_id: UUID
     approval_status: ApprovalStatus
+    origin: ApprovalOrigin
     tool_call_status: ToolCallStatus
     run_state: WorkflowState
     result: dict[str, Any] | None = None
