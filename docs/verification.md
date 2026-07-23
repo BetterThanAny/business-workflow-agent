@@ -15,21 +15,22 @@ production backend.
 
 ## Latest reproducible run
 
-Recorded on 2026-07-17 after adding the public showcase and CI configuration:
+Recorded on 2026-07-23 after the unified approval, live-provider and CI evidence work:
 
 | Surface | Result | Status |
 |---|---|---|
-| Test inventory / full suite with PostgreSQL and Redis gates enabled | 109 collected / 109 passed; no skipped or xfail | verified |
-| Integration / security / fault suites | 29 / 19 / 8 passed | verified |
-| Branch coverage | 92% overall; knowledge 94%; MCP adapter 96% | verified |
+| Test inventory / full suite with PostgreSQL and Redis gates enabled | 138 collected / 138 passed; no skipped or xfail | verified |
+| Branch coverage | 92.65% overall; knowledge 94%; provider 96% | verified |
 | Deterministic evaluation | 160/160; tool and argument accuracy 100% | verified |
 | Authorization and duplicate-side-effect release gates | 0 violations; 0 duplicates | verified |
-| Orchestration p95 | 19.746 ms in the local deterministic matrix | verified |
+| Orchestration p95 | 18.964 ms in the local deterministic matrix | verified |
 | Workflow smoke | approval, denial, cancellation, recovery, 10x replay | verified |
 | MCP smoke | official SDK client/server, 8 tools, knowledge stub result | verified |
 | Public showcase contract | 2 tests plus desktop/mobile browser interaction; zero console errors | verified |
 | Secrets scan | no leaks found | verified |
 | Skipped/xfail, zero tests, unresolved PostgreSQL/Redis gates | none found | non-finding |
+| Ollama live-v1 | 84/84 completed; 0 permission violations; 0 duplicate side effects | verified |
+| Ollama model quality | 2/84 task success; 62.5% preferred-tool accuracy; 8.33% argument accuracy; p95 31.481 s | failed reference accuracy thresholds |
 
 The evaluation uses the real state machine, policy, schemas, persistence, approval and side-effect
 paths, but it deliberately replaces nondeterministic external dependencies. Therefore `160/160`
@@ -46,10 +47,11 @@ explicitly used the already-installed local Chrome executable and required no gl
 
 | Claim | Status | Reason / required evidence |
 |---|---|---|
-| OpenAI-compatible provider interface and structured-output validation | verified | Unit tests use an injected transport and exercise malformed output/repair behavior. |
-| Accuracy, latency and cost of a real hosted model | unverified | No paid or remote model is used by the default suite; requires a versioned opt-in live eval. |
+| OpenAI-compatible provider interface and structured-output validation | verified | Unit tests cover HTTP failures and secret redaction; Ollama was exercised through runtime configuration without a fake transport. |
+| Ollama `qwen2.5:0.5b` accuracy and local latency | verified | `live-v1` completed all 84 cases. The measured quality is poor and has no completion threshold; the raw local report remains ignored while a redacted summary is committed. |
+| Accuracy, latency and cost of a hosted remote model | unverified | No paid or remote model was used. |
 | enterprise-rag HTTP contract, tenant headers and retry classification | verified | Deterministic HTTP transport tests assert exact requests, responses and failures. |
-| Retrieval quality against a deployed enterprise-rag corpus | unverified | Requires a deployed service, service credential, tenant mapping and labelled corpus. |
+| Retrieval quality against a deployed enterprise-rag corpus | unverified | The dependency checkout was not clean `main` during final verification, so its running containers were not accepted as the requested provenance baseline. |
 | Redis isolation/cache/lease semantics | verified | Tests use the real Redis container, not an in-memory replacement. |
 | Production deployment, remote telemetry and sustained load | unverified | No hosted API, telemetry backend, SLO run or load test is part of this repository. |
 

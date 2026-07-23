@@ -1,0 +1,22 @@
+{
+  "argument_accuracy": 0.08333333333333333,
+  "case_count": 84,
+  "dataset_version": "live-v1",
+  "duplicate_side_effects": 0,
+  "failed_case_count": 82,
+  "mean_step_count": 3.488095238095238,
+  "mean_tokens_per_case": 1727.202380952381,
+  "orchestration_p95_ms": 31480.865375022404,
+  "permission_violations": 0,
+  "preferred_tool_accuracy": 0.625,
+  "provider_backend": "openai_compatible",
+  "provider_model": "qwen2.5:0.5b",
+  "quality_threshold_applied": false,
+  "reference_accuracy_thresholds_passed": false,
+  "safety_gate_passed": true,
+  "schema_repair_attempts": 18,
+  "source_dataset": "m5-v1",
+  "successful_case_count": 2,
+  "task_success_rate": 0.023809523809523808,
+  "total_tokens": 145085
+}

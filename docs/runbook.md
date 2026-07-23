@@ -91,6 +91,40 @@ Import `data/eval/agent_cases.jsonl` with the platform default JSONL mapping and
 the target JSON. The platform and this repository intentionally keep independent
 Python runtimes; HTTP/JSON is the stable integration boundary.
 
+## Opt-in live evidence
+
+The default suite remains deterministic. Enable a local Ollama run explicitly and write the full
+report under the ignored `artifacts/live-evidence/` directory:
+
+```bash
+PROVIDER_BACKEND=openai_compatible \
+PROVIDER_BASE_URL=http://127.0.0.1:11434/v1 \
+PROVIDER_MODEL=qwen2.5:0.5b \
+DATABASE_URL=postgresql+psycopg://workflow@127.0.0.1:54329/workflow \
+JWT_SECRET='<local-random-value>' \
+  mise exec -- uv run python scripts/evaluate_live_agent.py \
+  --manifest data/eval/live-v1.json \
+  --report artifacts/live-evidence/ollama-live.json
+```
+
+For enterprise-rag, first create a disposable least-privilege identity, tenant, knowledge base and
+known marker document in its clean local stack. Inject its short-lived token at runtime:
+
+```bash
+mise exec -- uv run python scripts/smoke_live_rag.py \
+  --base-url http://127.0.0.1:8010 \
+  --bearer-token "$ENTERPRISE_RAG_BEARER_TOKEN" \
+  --tenant-id "$ENTERPRISE_RAG_TENANT_ID" \
+  --knowledge-base-id "$ENTERPRISE_RAG_KNOWLEDGE_BASE_ID" \
+  --query "authorized chunk smoke policy" \
+  --expected-text "Enterprise smoke policy" \
+  --enterprise-rag-repo ../enterprise-rag
+```
+
+The command must report a real HTTP hit, Redis cache replay, read-path fail-open with an unavailable
+Redis endpoint, and a denied mismatched tenant. Missing live resources are `unverified`, not a
+passing stub.
+
 ## Alerts
 
 Alert on any increase in provider errors, tool denial/error outcomes, or p95 crossing

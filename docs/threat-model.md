@@ -17,7 +17,7 @@
 | Cross-tenant trajectory disclosure | Tenant predicate plus owner/Admin/Auditor check; foreign access is 404 | M5 trajectory integration test |
 | PII leaks through trajectory or telemetry | Persisted redaction; bounded non-content span attributes and metric labels | M5 redaction assertion and existing audit tests |
 | Replay duplicates a write | Unique idempotency constraints and durable outbox | 20 replay cases, each replayed ten times |
-| High-risk write skips approval | Persisted approval pause and independent decision identity | approval/security suites and 20 approval cases |
+| REST or Agent high-risk write skips approval | Shared persisted approval path, explicit origin and independent decision identity | direct/agent approval, replay and security suites |
 | Provider timeout loses progress | Typed retry classification, durable next-retry timestamp, bounded backoff | 20 timeout/recovery cases |
 | Evaluation endpoint mutates production | Admin authentication plus isolated per-case in-memory database | HTTP target contract test |
 | Evaluation hides failures | Explicit denominators, zero-tolerance permission/duplicate gates, full failed trajectories | evaluator unit test and report artifact |
@@ -37,6 +37,8 @@
 - The deterministic suite proves orchestration and policy behavior, not the quality
   or latency of an opt-in live model. Live-provider evaluation remains separate and
   must never become a release substitute for deterministic authorization assertions.
+- The live provider and RAG commands are opt-in local evidence. Their absence, failure,
+  or low quality must remain visible and must not be replaced by stub results.
 - Redis is fail-open for knowledge reads. An outage can increase load on
   `enterprise-rag`; production rate limits and monitoring remain required.
 - The stdio MCP server receives a short-lived business JWT through process

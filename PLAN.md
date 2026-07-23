@@ -97,6 +97,20 @@ SDK、OpenTelemetry、Prometheus、Docker Compose、mise/uv。详细信任边界
 退出条件：Redis 隔离/租约、RAG 协议和失败矩阵、MCP schema/权限/重放、完整无 skip 验收均
 已验证。真实 enterprise-rag live round-trip 未执行，因此保持 `unverified`。
 
+### M7：Live evidence 与 claim 对齐 — 实施中（2026-07-23）
+
+- [x] REST 与 Agent/tool 的高风险退款统一进入持久化独立审批，并记录来源。
+- [x] OpenAI-compatible HTTP transport、显式运行时配置与失败分类；禁止静默回退。
+- [x] 84 条中英平衡 opt-in live 数据集、真实 provider evaluator 与 RAG/Redis smoke。
+- [x] CI branch coverage 92% 门禁、Gitleaks 与可下载 deterministic evidence。
+- [x] 完成 84 条 Ollama live run 并保存脱敏报告；安全门禁通过，模型任务成功率仅
+  2/84，按原值保留。
+- [ ] 完成真实 enterprise-rag HTTP/Redis/tenant round-trip。
+
+退出条件：默认 deterministic gate 保持通过；live evaluator 完整运行 84 条且权限违规和重复
+副作用均为 0；真实 RAG smoke 验证命中、cache hit、Redis outage fail-open 与错误租户拒绝；
+简历、README 和静态展示只采用本轮真实复测证据。未完成的 live 项不得由 stub 结果替代。
+
 ## 总体验收标准
 
 | 类别 | Release gate | 状态 |
@@ -110,8 +124,10 @@ SDK、OpenTelemetry、Prometheus、Docker Compose、mise/uv。详细信任边界
 | 注入安全 | 固定攻击集权限绕过 0 | verified |
 | 审计 | user/tenant/run/state/tool/脱敏参数/结果/时间可关联 | verified |
 | 性能 | 纯编排 p95 <=200ms | verified（确定性本地矩阵） |
-| Live LLM | 真实模型质量与成本 | unverified，非默认 release gate |
+| Live LLM | 真实模型质量与成本 | verified：本地 Ollama 84/84 已测，质量很差，非默认 release gate |
 | Live RAG | 真实 enterprise-rag 检索质量 | unverified，非默认 release gate |
+| 高风险 REST | 与 Agent/tool 相同的独立审批与 replay 语义 | verified |
+| Live evidence | Ollama 84 条与 enterprise-rag round-trip | partial：Ollama verified；RAG unverified |
 
 ## 验收命令
 

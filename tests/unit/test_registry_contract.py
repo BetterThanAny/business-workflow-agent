@@ -77,3 +77,8 @@ def test_tool_inputs_reject_unknown_or_coerced_fields() -> None:
                 "priority": 1,
             }
         )
+
+
+def test_registry_rejects_unknown_tool_name() -> None:
+    with pytest.raises(KeyError, match="unregistered tool"):
+        build_tool_registry().get("invented_tool")

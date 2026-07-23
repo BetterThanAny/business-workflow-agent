@@ -1,11 +1,14 @@
 from collections.abc import Callable
 from uuid import UUID
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from business_workflow_agent.auth import Principal, Role
+from business_workflow_agent.domain import ToolCallStatus, ToolExecutionStatus
+from business_workflow_agent.execution import ToolExecutor
 from business_workflow_agent.models import (
     Approval,
     AuditEvent,
@@ -14,6 +17,7 @@ from business_workflow_agent.models import (
     TicketEvent,
     ToolCall,
 )
+from business_workflow_agent.tools.registry import build_tool_registry
 
 
 def test_replaying_write_tool_ten_times_creates_one_side_effect(
@@ -163,3 +167,66 @@ def test_high_risk_tool_replays_one_approval_and_zero_refunds(
     approval = session.scalar(select(Approval))
     assert approval is not None
     assert approval.tool_arguments_redacted["reason"] == "[REDACTED]"
+
+
+def test_high_risk_persistence_failure_is_rolled_back_and_audited(
+    client: TestClient,
+    session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+    principal_factory: Callable[..., Principal],
+    auth_headers: Callable[[Principal], dict[str, str]],
+    create_run: Callable[[Principal], UUID],
+) -> None:
+    manager = principal_factory(Role.REFUND_MANAGER)
+    run_id = create_run(manager)
+    quote_request = {
+        "order_id": "order-rollback",
+        "purchase_amount_cents": 5000,
+        "requested_amount_cents": 1000,
+        "currency": "CNY",
+        "reason": "Forced persistence failure",
+    }
+    quote = client.post(
+        "/api/v1/refunds/quote",
+        json=quote_request,
+        headers={**auth_headers(manager), "X-Workflow-Run-ID": str(run_id)},
+    ).json()
+    arguments = {
+        "quote_id": quote["quote_id"],
+        "order_id": quote_request["order_id"],
+        "purchase_amount_cents": quote_request["purchase_amount_cents"],
+        "amount_cents": quote_request["requested_amount_cents"],
+        "currency": quote_request["currency"],
+        "reason": quote_request["reason"],
+    }
+    executor = ToolExecutor(session, build_tool_registry())
+
+    def fail_before_commit(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("synthetic persistence failure")
+
+    monkeypatch.setattr(executor, "_persist_approval_required", fail_before_commit)
+
+    response = executor.execute(
+        tool_name="issue_refund",
+        arguments=arguments,
+        principal=manager,
+        run_id=run_id,
+        idempotency_key="refund-forced-rollback",
+    )
+
+    assert response.status is ToolExecutionStatus.FAILED
+    assert response.error == "INTERNAL_ERROR"
+    session.expire_all()
+    calls = session.scalars(
+        select(ToolCall).where(ToolCall.idempotency_key == "refund-forced-rollback")
+    ).all()
+    assert len(calls) == 1
+    assert calls[0].status == ToolCallStatus.FAILED.value
+    assert calls[0].error_code == "INTERNAL_ERROR"
+    assert session.scalar(select(func.count()).select_from(Approval)) == 0
+    assert session.scalar(select(func.count()).select_from(Refund)) == 0
+    audit = session.scalar(
+        select(AuditEvent).where(AuditEvent.tool_call_id == calls[0].id)
+    )
+    assert audit is not None
+    assert audit.event_type == "TOOL_CALL_FAILED"

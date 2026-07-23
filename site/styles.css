@@ -45,6 +45,7 @@ h1 em { color: var(--muted); font-style: normal; font-weight: 500; }
 .button.primary:hover { background: #d5ff88; }
 .button.secondary:hover { border-color: var(--muted); }
 .truth-note { display: flex; gap: 16px; max-width: 810px; margin-top: 56px; padding: 14px 17px; border-left: 2px solid var(--warning); background: #15140f; color: var(--muted); font-size: .82rem; }
+.truth-note.shell { margin-top: 20px; }
 .truth-note strong { color: var(--warning); white-space: nowrap; }
 
 .stats { display: grid; grid-template-columns: repeat(4, 1fr); border-block: 1px solid var(--line); }
@@ -61,13 +62,13 @@ h1 em { color: var(--muted); font-style: normal; font-weight: 500; }
 .scenario-tabs button { flex: 1; padding: 15px 18px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; text-align: left; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .76rem; }
 .scenario-tabs button:hover { color: var(--text); }
 .scenario-tabs button[aria-selected="true"] { background: var(--panel); border-bottom-color: var(--accent); color: var(--accent); }
-.demo-console { border: 1px solid var(--line); background: var(--panel); box-shadow: 0 35px 100px rgba(0,0,0,.35); }
+.demo-console { min-width: 0; max-width: 100%; border: 1px solid var(--line); background: var(--panel); box-shadow: 0 35px 100px rgba(0,0,0,.35); }
 .console-topbar { min-height: 48px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 18px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: .73rem; }
 .lights { display: flex; gap: 6px; }
 .lights i { width: 8px; height: 8px; border-radius: 50%; background: #3b404a; }
 .recorded-badge { justify-self: end; color: var(--warning); border: 1px solid #59491f; padding: 3px 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-.console-body { display: grid; grid-template-columns: 300px 1fr; min-height: 440px; }
-.steps { padding: 20px 0; border-right: 1px solid var(--line); }
+.console-body { min-width: 0; display: grid; grid-template-columns: 300px 1fr; min-height: 440px; }
+.steps { min-width: 0; max-width: 100%; padding: 20px 0; border-right: 1px solid var(--line); }
 .step { width: 100%; display: grid; grid-template-columns: 42px 1fr; gap: 8px; align-items: center; padding: 16px 20px; border: 0; border-left: 2px solid transparent; background: transparent; color: #777d87; text-align: left; cursor: pointer; }
 .step > span:first-child { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .68rem; }
 .step strong, .step small { display: block; }
@@ -107,7 +108,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
 .text-link:hover { text-decoration: underline; }
 
 .evidence { border-top: 1px solid var(--line); }
-.evidence-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.evidence-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
 .evidence-card { padding: 36px; border: 1px solid var(--line); background: var(--panel); }
 .evidence-card > span { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .68rem; letter-spacing: .14em; }
 .evidence-card.verified > span { color: var(--accent); }
@@ -149,11 +150,17 @@ footer a:hover { color: var(--text); }
   h1 { font-size: clamp(2.75rem, 15vw, 4.2rem); }
   .hero-actions { flex-direction: column; }
   .truth-note { flex-direction: column; gap: 4px; margin-top: 38px; }
+  .truth-note strong { white-space: normal; overflow-wrap: anywhere; }
   .stats article { padding: 22px 13px; }
   .stats strong { font-size: 1.35rem; }
   .demo-section, .architecture, .evidence { padding-block: 75px; }
+  .scenario-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow-x: hidden; }
+  .scenario-tabs button { min-width: 0; padding: 12px 8px; }
   .console-topbar { grid-template-columns: auto 1fr; gap: 10px; }
   .console-topbar #scenario-title { display: none; }
+  .steps { grid-template-columns: repeat(4, minmax(0, 1fr)); overflow-x: hidden; }
+  .step { grid-template-columns: 1fr; padding: 12px 8px; text-align: center; }
+  .step small { display: none; }
   .step-detail { padding: 34px 20px; }
   .outcome { flex-direction: column; }
   .console-footer { align-items: flex-start; gap: 12px; }

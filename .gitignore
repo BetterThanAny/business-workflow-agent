@@ -1,6 +1,7 @@
 .DS_Store
 .env
 artifacts/live-evidence/*.json
+!artifacts/live-evidence/*.summary.json
 .mise.local.toml
 .pytest_cache/
 .ruff_cache/

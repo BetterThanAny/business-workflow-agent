@@ -24,6 +24,10 @@
     </header>
 
     <main id="top">
+      <div class="truth-note shell" role="note">
+        <strong>STATIC DETERMINISTIC WALKTHROUGH — NOT A HOSTED BACKEND</strong>
+        <span>本页只展示已记录证据；不会向模型、RAG 或业务 API 发起实时请求。</span>
+      </div>
       <section class="hero shell">
         <div class="eyebrow"><span></span> SAFE LLM × BUSINESS SYSTEMS</div>
         <h1>模型可以提议。<br><em>只有服务端可以授权。</em></h1>
@@ -108,9 +112,14 @@
             <ul><li>策略、schema 与状态迁移</li><li>审批、取消、恢复与重放</li><li>真实 PostgreSQL / Redis</li><li>MCP SDK Client / Server</li></ul>
           </article>
           <article class="evidence-card unverified">
-            <span>UNVERIFIED</span>
-            <h3>需要 live 环境的外部质量</h3>
-            <ul><li>真实模型准确率、成本与延迟</li><li>企业语料检索相关性</li><li>生产部署与远程 telemetry</li><li>持续负载和外部系统 SLO</li></ul>
+            <span>MEASURED · NOT A RELEASE GATE</span>
+            <h3>Ollama 真实模型证据</h3>
+            <ul><li>84/84 完成；权限违规与重复副作用均为 0</li><li>任务成功 2/84；工具准确率 62.5%</li><li>真实 OpenAI-compatible HTTP transport</li><li>低质量结果原样公开，不替代确定性安全断言</li></ul>
+          </article>
+          <article class="evidence-card unverified">
+            <span>OPT-IN LIVE RAG</span>
+            <h3>enterprise-rag 边界</h3>
+            <ul><li>真实 HTTP 检索与租户身份</li><li>Redis cache hit 与 outage fail-open</li><li>错误租户必须拒绝</li><li>未运行时保持 unverified</li></ul>
           </article>
         </div>
         <a class="text-link" href="https://github.com/BetterThanAny/business-workflow-agent/blob/main/docs/verification.md">查看命令、结果和 claim boundary →</a>

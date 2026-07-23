@@ -33,8 +33,8 @@ flowchart LR
 
 - **模型不授权**：模型文本、检索内容和工具参数都是不可信输入；`ToolExecutor` 使用服务端
   `Principal`、固定 scope 与 Pydantic schema 重新校验。
-- **高风险必审批**：退款等操作持久化暂停；发起者不能自批，decision token 绑定审批身份且
-  只能使用一次。
+- **高风险必审批**：REST 与 Agent/tool 路径的退款都持久化暂停；发起者不能自批，
+  decision token 绑定审批身份且只能使用一次。
 - **副作用可重放**：写工具经唯一 tool call、outbox 租约和幂等键执行；checkpoint replay
   不会重复建单或退款。
 - **失败可恢复**：429、timeout、5xx 使用持久化有界退避；取消、人工复核和 17 个状态的
@@ -47,13 +47,14 @@ flowchart LR
 | 证据 | 当前结论 | 证明边界 |
 |---|---:|---|
 | 160 条版本化场景 | 160/160 | 确定性 provider；验证编排、策略、参数、重放，不代表真实模型质量 |
-| 自动化测试 | 109 项全通过 | 包含越权、注入、审批、超时、取消、跨租户、重启恢复与展示页契约 |
+| 自动化测试 | 138 项全通过；分支覆盖率 92.65% | PostgreSQL/Redis 门禁开启，无 skip/xfail；包含越权、注入、审批、超时、取消、跨租户与恢复 |
 | 写操作重放 | 10 次 → 1 次副作用 | PostgreSQL 约束、tool call 与 outbox 的组合保证 |
-| 知识检索 | 协议与失败矩阵通过 | 默认是明确标记的 stub；真实 enterprise-rag round-trip 尚未验证 |
+| 知识检索 | 协议与失败矩阵通过 | 默认是明确标记的 stub；提供 opt-in 真实 enterprise-rag smoke |
 | MCP | 官方 SDK Client/Server smoke | 8 个固定工具，身份注入字段被拒绝 |
+| Live LLM | 84/84 完成；安全违规 0；任务成功 2/84 | Ollama `qwen2.5:0.5b` 实测质量很差；不进入默认 CI，也不替代确定性安全门禁 |
 
-这些数字是本地确定性 release gate，不是线上模型 benchmark。真实模型效果、真实企业知识库、
-远程 telemetry 与生产负载均列为 **unverified**，详见
+这些数字是本地确定性 release gate，不是线上模型 benchmark。仅 Ollama `qwen2.5:0.5b`
+具有本地实测结果；其他模型、真实企业知识库、远程 telemetry 与生产负载仍为 **unverified**，详见
 [验证说明](docs/verification.md)。CI 会重新执行默认可复现矩阵。
 
 ## 快速运行
@@ -87,6 +88,20 @@ mise exec -- uv run python scripts/evaluate_agent.py \
 更多迁移、MCP 和故障验证命令见 [运行手册](docs/runbook.md)。默认套件不调用付费模型或远程
 知识库，也不需要业务凭据。
 
+真实 provider 与 RAG 证据是显式 opt-in：
+
+```bash
+PROVIDER_BACKEND=openai_compatible \
+PROVIDER_BASE_URL=http://127.0.0.1:11434/v1 \
+PROVIDER_MODEL=qwen2.5:0.5b \
+DATABASE_URL=postgresql+psycopg://workflow@127.0.0.1:54329/workflow \
+JWT_SECRET='<local-random-value>' \
+  mise exec -- uv run python scripts/evaluate_live_agent.py \
+  --report artifacts/live-evidence/ollama-live.json
+
+mise exec -- uv run python scripts/smoke_live_rag.py --help
+```
+
 ## 代码导航
 
 | 目录 | 职责 |
@@ -101,8 +116,8 @@ mise exec -- uv run python scripts/evaluate_agent.py \
 
 ## 当前边界
 
-项目实现的是可复现的安全后端参考，不是托管 SaaS。没有真实 provider 凭据时，不宣称模型
-理解质量；没有 enterprise-rag 服务与租户映射时，不宣称真实检索质量。生产化还需要 live
-provider/RAG 评测、远程 telemetry、负载测试、部署与密钥轮换方案。
+项目实现的是可复现的安全后端参考，不是托管 SaaS。opt-in 命令未运行时，不宣称真实模型
+或 enterprise-rag 质量；即使本地 live evidence 通过，也不代表生产部署、真实用户、远程
+telemetry、持续负载或业务影响。
 
 MIT License。

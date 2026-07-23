@@ -4,14 +4,59 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from business_workflow_agent.auth import Principal, Role
-from business_workflow_agent.evaluation import evaluate_case, load_evaluation_dataset
+from business_workflow_agent.evaluation import (
+    EvaluationCase,
+    evaluate_case,
+    evaluate_live_dataset,
+    load_evaluation_dataset,
+)
+from business_workflow_agent.workflow.provider import (
+    DeterministicProvider,
+    IntentProposal,
+    ProviderRequest,
+    RepairRequest,
+)
 
 DATASET = Path(__file__).parents[2] / "data/eval/agent_cases.jsonl"
 
 
+class _PersistentlyInvalidProvider(DeterministicProvider):
+    def classify(self, request: ProviderRequest) -> IntentProposal:
+        proposal = super().classify(request)
+        return proposal.model_copy(update={"arguments": {"unexpected": True}})
+
+    def repair(self, request: RepairRequest) -> IntentProposal:
+        return request.proposal
+
+
+def test_live_evaluator_uses_injected_provider_and_runtime_database() -> None:
+    cases = load_evaluation_dataset(DATASET)
+    report = evaluate_live_dataset(
+        [next(case for case in cases if case.id == "knowledge-001")],
+        provider=DeterministicProvider(),
+        database_url="sqlite+pysqlite:///:memory:",
+    )
+
+    assert report.metrics.case_count == 1
+    assert report.results[0].output["schema_repair_attempts"] == 0
+
+
+def test_live_evaluator_records_persistently_invalid_model_output() -> None:
+    cases = load_evaluation_dataset(DATASET)
+    report = evaluate_live_dataset(
+        [next(case for case in cases if case.id == "approval-003")],
+        provider=_PersistentlyInvalidProvider(),
+        database_url="sqlite+pysqlite:///:memory:",
+    )
+
+    assert report.metrics.case_count == 1
+    assert report.results[0].task_success is False
+    assert report.results[0].output["schema_repair_attempts"] == 1
+
+
 def test_one_real_case_per_required_category_passes_end_to_end() -> None:
     cases = load_evaluation_dataset(DATASET)
-    selected = {}
+    selected: dict[str, EvaluationCase] = {}
     for case in cases:
         selected.setdefault(case.task_type, case)
 

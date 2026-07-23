@@ -57,7 +57,12 @@ jobs:
       - name: Verify test inventory
         run: mise exec -- uv run pytest --collect-only -q -ra
       - name: Run full test suite with integration gates enabled
-        run: mise exec -- uv run pytest -q -ra
+        run: >-
+          mkdir -p artifacts &&
+          mise exec -- uv run pytest -q -ra
+          --cov=business_workflow_agent --cov-branch
+          --cov-report=term-missing --cov-report=xml:artifacts/coverage.xml
+          --cov-fail-under=92
       - name: Verify migrations
         run: |
           mise exec -- uv run alembic upgrade head
@@ -69,5 +74,18 @@ jobs:
         run: mise exec -- uv run python scripts/smoke_mcp.py
       - name: Run deterministic release gate
         run: >-
+          mkdir -p artifacts &&
           mise exec -- uv run python scripts/evaluate_agent.py
           --dataset data/eval/agent_cases.jsonl
+          --report artifacts/deterministic-report.json
+      - name: Scan tracked content for secrets
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload deterministic evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: deterministic-evidence
+          path: |
+            artifacts/coverage.xml
+            artifacts/deterministic-report.json

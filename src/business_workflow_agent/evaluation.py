@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Literal, cast
-from uuid import NAMESPACE_URL, UUID, uuid5
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from pydantic import Field, StrictInt, field_validator
 from sqlalchemy import func, select
@@ -374,15 +374,22 @@ def _execute_input(
         resolved_provider = _TimeoutOnceProvider(resolved_provider)
     telemetry = WorkflowTelemetry()
     runner = AgentRunner(sessions, registry, resolved_provider, clock=clock, telemetry=telemetry)
-    tenant_id = uuid5(NAMESPACE_URL, f"eval-tenant:{data.case_id}")
-    user_id = uuid5(NAMESPACE_URL, f"eval-user:{data.case_id}:{data.role.value}")
+    execution_id = uuid4()
+    tenant_id = uuid5(NAMESPACE_URL, f"eval-tenant:{execution_id}:{data.case_id}")
+    user_id = uuid5(
+        NAMESPACE_URL,
+        f"eval-user:{execution_id}:{data.case_id}:{data.role.value}",
+    )
     principal = Principal(
         user_id=user_id,
         tenant_id=tenant_id,
         roles=frozenset({data.role}),
         scopes=granted_scopes({data.role}),
     )
-    customer_id = uuid5(NAMESPACE_URL, f"eval-customer:{data.case_id}")
+    customer_id = uuid5(
+        NAMESPACE_URL,
+        f"eval-customer:{execution_id}:{data.case_id}",
+    )
     with sessions.begin() as session:
         session.add(
             Customer(
@@ -431,13 +438,6 @@ def _execute_input(
                     normalized = _normalize_symbols(
                         arguments if isinstance(arguments, dict) else {}, symbols
                     )
-                    if completed.state is not WorkflowState.CLARIFY:
-                        try:
-                            definition = registry.get(tool_name)
-                        except KeyError:
-                            definition = None
-                        if definition is not None:
-                            definition.input_model.model_validate(arguments)
                     actual_calls.append({"name": tool_name, "arguments": normalized})
             final_state = completed.state.value
             final_error = completed.error_code
